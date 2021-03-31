@@ -18,7 +18,10 @@ RUN wget https://github.com/nextflow-io/blast-example/archive/refs/heads/master.
   && mv blast-example-master/blast-db /blast-db \
   && rm -rf blast-example-master \
   && rm master.zip
-  
+
+# Create default results dir
+RUN mkdir /result
+
 # ADD PIPELINE
 ADD pipeline.xml /pipeline.xml
 ENTRYPOINT ["/compi", "run",  "-p", "/pipeline.xml"]
