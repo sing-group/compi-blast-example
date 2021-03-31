@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Compi version of Nextflow pipeline: https://www.nextflow.io/example1.html -->
+<pipeline xmlns="http://www.sing-group.org/compi/pipeline-1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <version>1.0</version>
+  <params>
+      <param name="query" shortName="q" defaultValue="data/sample.fa">Input fasta file</param>
+      <param name="database" shortName="db" defaultValue="blast-db/pdb/tiny">Blast database</param>
+      <param name="output" shortName="o" defaultValue="result/result.txt">Output results file</param>
+      <param name="chunkSize" shortName="s" defaultValue="100">Chunk size for sequence split</param>
+      <param name="splittedSequences" shortName="sq" defaultValue="work/splitted-sequences">Slitted sequences path</param>
+  </params>
+
+  <tasks>
+    
+    <task id="splitFasta" 
+          params="query chunkSize splittedSequences">
+      
+      rm -rf $splittedSequences
+      mkdir -p $splittedSequences
+      seqkit split --by-size $chunkSize $query --out-dir $splittedSequences
+    </task>
+
+    <foreach id="blast"
+             after="splitFasta"
+             params="splittedSequences database"             
+             of="file" in="$splittedSequences" as="fasta">
+      
+      blastp -db $database -query $fasta -outfmt 6 > ${fasta}_blast_result
+      cat ${fasta}_blast_result | head -n 10 | cut -f 2 > ${fasta}_top_hits
+    </foreach>
+
+    <foreach id="extract" 
+             after="*blast"
+             params="splittedSequences database"
+             of="file" in="$splittedSequences" as="fasta">
+      
+      blastdbcmd -db $database -entry_batch ${fasta}_top_hits | head -n 10 > ${fasta}_sequences
+    </foreach>
+
+    <task id="collect-results" 
+          after="extract" 
+          params="splittedSequences output">
+      
+      cat $splittedSequences/*_sequences > $output
+      echo "matching sequences:"
+      cat $output
+    </task>
+
+  </tasks>
+  
+  <metadata>
+    <task-description id="splitFasta">
+      The 'query' file is split in chunks containing as many sequences as defined by 'chunkSize' 
+      and saves them in 'splittedSequences' dir
+    </task-description>
+    <task-description id="blast">
+      Executes a BLAST job for each sequence in 'splittedSequences' and creates a _top_hits file 
+      inside 'splittedSequences' path for each sequence chunk
+    </task-description>
+    <task-description id="extract">
+      Executes an extract job for each sequence in 'splittedSequences' by using the correspoding 
+      _top_hits file found in 'splittedSequences'
+    </task-description>
+    <task-description id="collect-results">
+      Collects all the sequence files and saves them into 'output'
+    </task-description>
+  </metadata>
+</pipeline>
